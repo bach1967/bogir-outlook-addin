@@ -3,6 +3,19 @@ Office.onReady(() => {
   checkAssignmentStatus();
 });
 
+
+function formatDateTimeForMySQL(date) {
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  const seconds = String(d.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
+
 // 🔍 Hozzárendelési státusz lekérdezése
 function checkAssignmentStatus() {
   const item = Office.context.mailbox.item;
@@ -11,9 +24,11 @@ function checkAssignmentStatus() {
     const bodyContent = result.value;
     sha256(bodyContent).then(bodyHash => {
 
+      const receivedLocal = formatDateTimeForMySQL(item.dateTimeCreated);
+
       const payload = {
         subject: item.subject,
-        receivedDateTime: item.dateTimeCreated.toISOString(),
+        receivedDateTime: receivedLocal,
         from_address: item.from.emailAddress,
         to_address: item.to.length > 0 ? item.to[0].emailAddress : "",
         bodyHash: bodyHash
