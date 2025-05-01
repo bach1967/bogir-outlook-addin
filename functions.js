@@ -19,6 +19,8 @@ function checkAssignmentStatus() {
         bodyHash: bodyHash
       };
 
+      console.log('checkAssignmentStatus payload:', payload);
+
       fetch("https://bogir.hu/V2/api/emails/emails_assignment_check.php", {
         method: "POST",
         headers: {
