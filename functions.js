@@ -9,30 +9,32 @@ function decodeHTMLEntities(html) {
   return txt.value;
 }
 
-// 📝 HTML zu Plain Text mit CRLF-Zeilenumbrüchen analog Java
+// 📝 HTML zu Plain Text mit LF-Zeilenumbrüchen (LF statt CRLF)
 function htmlToPlainTextWithLineBreaks(text) {
-  // <br> wird zu CRLF
-  let result = text.replace(/<br\s*\/?>/gi, '\r\n');
-  // Blockende-Tags werden zu CRLF
-  result = result.replace(/<\/(p|div|ul|ol|li|table|tr|h[1-6])>/gi, '\r\n');
+  // <br> wird zu LF
+  let result = text.replace(/<br\s*\/?>/gi, '\n');
+  // Blockende-Tags werden zu LF
+  result = result.replace(/<\/(p|div|ul|ol|li|table|tr|h[1-6])>/gi, '\n');
   // Alle übrigen Tags entfernen
   result = result.replace(/<[^>]+>/g, '');
   return result;
 }
 
-// 📏 Vorverarbeitung analog Java: HTML dekodieren, in Plain Text wandeln, trim auf 4900 Zeichen
+// 📏 Vorverarbeitung analog Java: HTML dekodieren, in Plain Text wandeln, whitespace-normalisieren, trim auf 4900 Zeichen
 function preprocessBody(htmlContent) {
-  // HTML-Entities dekodieren (z.B. &nbsp; → space)
-  const decoded = decodeHTMLEntities(htmlContent);
-  // In Plain Text mit CRLF
+  // HTML-Entities dekodieren
+  let decoded = decodeHTMLEntities(htmlContent);
+  // Non-breaking spaces ersetzen
+  decoded = decoded.replace(/\u00A0/g, ' ');
+  // In Plain Text mit LF-Zeilenumbrüchen
   let plain = htmlToPlainTextWithLineBreaks(decoded);
-  // Java könnte auch mehrere CRLF hintereinander beibehalten, wir lassen sie
-  // Auf max. 4900 Zeichen kürzen
+  // Auf max. 4900 Zeichen kürzen (Java substring-Logik)
   if (plain.length > 4900) {
     plain = plain.substring(0, 4900);
   }
-  // Whitespace-Trim (Java .trim() entfernt nur am Anfang/Ende)
-  return plain.trim();
+  console.log('processed length:', plain.length);
+  console.log('processed content:', JSON.stringify(plain));
+  return plain;
 }
 
 // 📛 SHA256 Hash-Funktion (UTF-8)
@@ -57,8 +59,6 @@ async function checkAssignmentStatus() {
     if (result.status !== Office.AsyncResultStatus.Succeeded) throw new Error(result.error.message);
 
     const processed = preprocessBody(result.value);
-    console.log('Processed body for hash:', JSON.stringify(processed));
-
     const bodyHash = await sha256(processed);
     console.log('Computed SHA256:', bodyHash);
 
@@ -112,8 +112,6 @@ async function assignEmail() {
     if (result.status !== Office.AsyncResultStatus.Succeeded) throw new Error(result.error.message);
 
     const processed = preprocessBody(result.value);
-    console.log('Processed body (assign):', JSON.stringify(processed));
-
     const bodyHash = await sha256(processed);
     console.log('Computed SHA256 (assign):', bodyHash);
 
