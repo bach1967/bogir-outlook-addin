@@ -4,7 +4,7 @@ Office.onReady(() => {
 
 // 📝 HTML zu Plain Text mit Zeilenumbrüchen
 function htmlToPlainTextWithLineBreaks(html) {
-  let text = html.replace(/<br\s*\/?>/gi, '\n');
+  let text = html.replace(/<br\s*\/?/gi, '\n');
   text = text.replace(/<\/(p|div|ul|ol|li|table|tr|h[1-6])>/gi, '\n');
   text = text.replace(/<[^>]+>/g, '');
   return text;
@@ -13,8 +13,7 @@ function htmlToPlainTextWithLineBreaks(html) {
 // 📏 Vorverarbeitung analog Java: HTML->Plain, trim auf 4900 Zeichen
 function preprocessBody(htmlContent) {
   const plain = htmlToPlainTextWithLineBreaks(htmlContent);
-  const truncated = plain.length > 4900 ? plain.substring(0, 4900) : plain;
-  return truncated;
+  return plain.length > 4900 ? plain.substring(0, 4900) : plain;
 }
 
 // 🕒 Datumformat für MySQL: YYYY-MM-DD HH:MM:SS (lokale Zeit)
@@ -24,133 +23,126 @@ function formatDateTimeForMySQL(date) {
 }
 
 // 🔍 Hozzárendelési státusz lekérdezése
-function checkAssignmentStatus() {
+async function checkAssignmentStatus() {
   const item = Office.context.mailbox.item;
-
-  item.body.getAsync("html", (result) => {
+  try {
+    const result = await new Promise((resolve) => item.body.getAsync("html", resolve));
     if (result.status !== Office.AsyncResultStatus.Succeeded) {
-      console.error('Error getting body HTML:', result.error);
-      document.getElementById("status").innerText = `Hiba a body lekérdezésénél: ${result.error.message}`;
-      return;
+      throw new Error(result.error.message);
     }
     const htmlContent = result.value;
     const processed = preprocessBody(htmlContent);
+    console.log('Processed body for hash:', processed);
 
-    // Debug: log der vor dem Hashing verwendeten Zeichenkette
-    console.log('Processed body for hash (length=' + processed.length + '):', processed);
+    const bodyHash = await sha256(processed);
+    console.log('Computed SHA256:', bodyHash);
 
-    sha256(processed).then(bodyHash => {
-      const receivedLocal = formatDateTimeForMySQL(item.dateTimeCreated);
-      const payload = {
-        subject: item.subject,
-        receivedDateTime: receivedLocal,
-        from_address: item.from.emailAddress,
-        to_address: item.to.length > 0 ? item.to[0].emailAddress : "",
-        bodyHash: bodyHash
-      };
+    const receivedLocal = formatDateTimeForMySQL(item.dateTimeCreated);
+    const url = "https://bogir.hu/V2/api/emails/emails_assignment_check.php";
+    const payload = {
+      subject: item.subject,
+      receivedDateTime: receivedLocal,
+      from_address: item.from.emailAddress,
+      to_address: item.to.length > 0 ? item.to[0].emailAddress : "",
+      bodyHash: bodyHash
+    };
+    const options = {
+      method: "POST",
+      headers: {
+        "Authorization": "Basic " + btoa("Admin_2024$$:S3cure+P@ssw0rd2024!"),
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    };
+    // 🔧 Debug: URL und Optionen vor fetch
+    console.log('Fetching URL:', url);
+    console.log('Fetch options:', options);
 
-      console.log('checkAssignmentStatus payload:', payload);
+    const response = await fetch(url, options);
+    console.log('Fetch response:', response);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status} ${response.statusText}`);
+    }
+    const data = await response.json();
+    console.log('Response JSON:', data);
 
-      fetch("https://bogir.hu/V2/api/emails/emails_assignment_check.php", {
-        method: "POST",
-        headers: {
-          "Authorization": "Basic " + btoa("Admin_2024$$:S3cure+P@ssw0rd2024!"),
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(payload)
-      })
-      .then(response => response.json())
-      .then(data => {
-        console.log('Response data:', data);
-        const statusDiv = document.getElementById("status");
-        const assignBtn = document.querySelector("button");
-        if (data.status === "assigned") {
-          statusDiv.innerText = `Hozzárendelve: ${data.felelos}`;
-          assignBtn.disabled = true;
-        } else if (data.status === "unassigned") {
-          statusDiv.innerText = "Még nincs hozzárendelve.";
-          assignBtn.disabled = false;
-        } else {
-          statusDiv.innerText = "E-mail nincs rögzítve az adatbázisban.";
-          assignBtn.disabled = true;
-        }
-      })
-      .catch(err => {
-        console.error('Fetch error:', err);
-        document.getElementById("status").innerText = "Hiba a betöltés során.";
-      });
-    });
-  });
+    const statusDiv = document.getElementById("status");
+    const assignBtn = document.querySelector("button");
+    if (data.status === "assigned") {
+      statusDiv.innerText = `Hozzárendelve: ${data.felelos}`;
+      assignBtn.disabled = true;
+    } else if (data.status === "unassigned") {
+      statusDiv.innerText = "Még nincs hozzárendelve.";
+      assignBtn.disabled = false;
+    } else {
+      statusDiv.innerText = "E-mail nincs rögzítve az adatbázisban.";
+      assignBtn.disabled = true;
+    }
+  } catch (err) {
+    console.error('checkAssignmentStatus error:', err);
+    document.getElementById("status").innerText = `Hiba a betöltés során: ${err.message}`;
+  }
 }
 
 // 📛 SHA256 Hash-Funktion (UTF-8)
 function sha256(str) {
   const encoder = new TextEncoder();
-  const data = encoder.encode(str);
-  return crypto.subtle.digest('SHA-256', data).then(hash => {
-    const hex = Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
-    console.log('Computed SHA256:', hex);
-    return hex;
-  });
+  return crypto.subtle.digest('SHA-256', encoder.encode(str))
+    .then(hash => Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join(''));
 }
 
 // 🛡️ Hozzárendelés funkció mit gleicher Vorverarbeitung
-function assignEmail() {
+async function assignEmail() {
   const item = Office.context.mailbox.item;
   const statusDiv = document.getElementById("status");
   const assignBtn = document.querySelector("button");
-
   assignBtn.disabled = true;
   statusDiv.innerText = "Hozzárendelés folyamatban...";
-
-  item.body.getAsync("html", (result) => {
+  try {
+    const result = await new Promise((resolve) => item.body.getAsync("html", resolve));
     if (result.status !== Office.AsyncResultStatus.Succeeded) {
-      console.error('Error getting body HTML for assign:', result.error);
-      statusDiv.innerText = `Hiba a body lekérdezésénél: ${result.error.message}`;
-      assignBtn.disabled = false;
-      return;
+      throw new Error(result.error.message);
     }
-    const htmlContent = result.value;
-    const processed = preprocessBody(htmlContent);
+    const processed = preprocessBody(result.value);
+    console.log('Processed body for assign:', processed);
 
-    console.log('Processed body for assign (length=' + processed.length + '):', processed);
+    const bodyHash = await sha256(processed);
+    console.log('Computed SHA256 for assign:', bodyHash);
 
-    sha256(processed).then(bodyHash => {
-      const receivedLocal = formatDateTimeForMySQL(item.dateTimeCreated);
-      const payload = {
-        subject: item.subject,
-        receivedDateTime: receivedLocal,
-        from_address: item.from.emailAddress,
-        to_address: item.to.length > 0 ? item.to[0].emailAddress : "",
-        bodyHash: bodyHash,
-        assignee: Office.context.mailbox.userProfile.emailAddress
-      };
+    const receivedLocal = formatDateTimeForMySQL(item.dateTimeCreated);
+    const url = "https://bogir.hu/V2/api/emails/emails_assignment.php";
+    const payload = {
+      subject: item.subject,
+      receivedDateTime: receivedLocal,
+      from_address: item.from.emailAddress,
+      to_address: item.to.length > 0 ? item.to[0].emailAddress : "",
+      bodyHash: bodyHash,
+      assignee: Office.context.mailbox.userProfile.emailAddress
+    };
+    const options = {
+      method: "POST",
+      headers: {
+        "Authorization": "Basic " + btoa("Admin_2024$$:S3cure+P@ssw0rd2024!"),
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    };
+    console.log('Assign fetch URL:', url);
+    console.log('Assign fetch options:', options);
 
-      console.log('assignEmail payload:', payload);
-
-      fetch("https://bogir.hu/V2/api/emails/emails_assignment.php", {
-        method: "POST",
-        headers: {
-          "Authorization": "Basic " + btoa("Admin_2024$$:S3cure+P@ssw0rd2024!"),
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(payload)
-      })
-      .then(response => response.json())
-      .then(data => {
-        console.log('Assign response data:', data);
-        if (data.status === "success") {
-          statusDiv.innerText = `Sikeres hozzárendelés: ${data.felelos}`;
-        } else {
-          statusDiv.innerText = `Hiba a hozzárendelés során: ${data.message || 'Ismeretlen hiba'}`;
-          assignBtn.disabled = false;
-        }
-      })
-      .catch(err => {
-        console.error('Assign fetch error:', err);
-        statusDiv.innerText = "Hiba a hozzárendelés során.";
-        assignBtn.disabled = false;
-      });
-    });
-  });
+    const response = await fetch(url, options);
+    console.log('Assign response:', response);
+    if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText}`);
+    const data = await response.json();
+    console.log('Assign response JSON:', data);
+    if (data.status === "success") {
+      statusDiv.innerText = `Sikeres hozzárendelés: ${data.felelos}`;
+    } else {
+      throw new Error(data.message || 'Ismeretlen hiba');
+    }
+  } catch (err) {
+    console.error('assignEmail error:', err);
+    statusDiv.innerText = `Hiba a hozzárendelés során: ${err.message}`;
+    assignBtn.disabled = false;
+  }
 }
