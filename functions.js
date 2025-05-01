@@ -9,12 +9,12 @@ function decodeHTMLEntities(html) {
   return txt.value;
 }
 
-// 📝 HTML zu Plain Text mit Zeilenumbrüchen
+// 📝 HTML zu Plain Text mit CRLF-Zeilenumbrüchen analog Java
 function htmlToPlainTextWithLineBreaks(text) {
-  // Zeilenumbrüche für <br> setzen
-  let result = text.replace(/<br\s*\/?>/gi, '\n');
-  // Zeilenumbrüche für blockende Tags
-  result = result.replace(/<\/(p|div|ul|ol|li|table|tr|h[1-6])>/gi, '\n');
+  // <br> wird zu CRLF
+  let result = text.replace(/<br\s*\/?>/gi, '\r\n');
+  // Blockende-Tags werden zu CRLF
+  result = result.replace(/<\/(p|div|ul|ol|li|table|tr|h[1-6])>/gi, '\r\n');
   // Alle übrigen Tags entfernen
   result = result.replace(/<[^>]+>/g, '');
   return result;
@@ -22,12 +22,17 @@ function htmlToPlainTextWithLineBreaks(text) {
 
 // 📏 Vorverarbeitung analog Java: HTML dekodieren, in Plain Text wandeln, trim auf 4900 Zeichen
 function preprocessBody(htmlContent) {
-  // HTML-Entities dekodieren
+  // HTML-Entities dekodieren (z.B. &nbsp; → space)
   const decoded = decodeHTMLEntities(htmlContent);
-  // in Plain Text mit Zeilenumbrüchen
-  const plain = htmlToPlainTextWithLineBreaks(decoded);
-  // auf max. 4900 Zeichen kürzen
-  return plain.length > 4900 ? plain.substring(0, 4900) : plain;
+  // In Plain Text mit CRLF
+  let plain = htmlToPlainTextWithLineBreaks(decoded);
+  // Java könnte auch mehrere CRLF hintereinander beibehalten, wir lassen sie
+  // Auf max. 4900 Zeichen kürzen
+  if (plain.length > 4900) {
+    plain = plain.substring(0, 4900);
+  }
+  // Whitespace-Trim (Java .trim() entfernt nur am Anfang/Ende)
+  return plain.trim();
 }
 
 // 📛 SHA256 Hash-Funktion (UTF-8)
@@ -52,7 +57,7 @@ async function checkAssignmentStatus() {
     if (result.status !== Office.AsyncResultStatus.Succeeded) throw new Error(result.error.message);
 
     const processed = preprocessBody(result.value);
-    console.log('Processed body:', processed);
+    console.log('Processed body for hash:', JSON.stringify(processed));
 
     const bodyHash = await sha256(processed);
     console.log('Computed SHA256:', bodyHash);
@@ -89,7 +94,7 @@ async function checkAssignmentStatus() {
       btn.disabled = true;
     }
   } catch (err) {
-    console.error('checkAssignmentStatus error:', err);
+    console.error('checkAssignmentStatus error:', err.name, err.message);
     document.getElementById('status').innerText = `Hiba a betöltés során: ${err.message}`;
   }
 }
@@ -107,7 +112,7 @@ async function assignEmail() {
     if (result.status !== Office.AsyncResultStatus.Succeeded) throw new Error(result.error.message);
 
     const processed = preprocessBody(result.value);
-    console.log('Processed body (assign):', processed);
+    console.log('Processed body (assign):', JSON.stringify(processed));
 
     const bodyHash = await sha256(processed);
     console.log('Computed SHA256 (assign):', bodyHash);
@@ -138,7 +143,7 @@ async function assignEmail() {
       throw new Error(data.message || 'Ismeretlen hiba');
     }
   } catch (err) {
-    console.error('assignEmail error:', err);
+    console.error('assignEmail error:', err.name, err.message);
     statusDiv.innerText = `Hiba a hozzárendelés során: ${err.message}`;
     btn.disabled = false;
   }
