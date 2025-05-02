@@ -14,6 +14,21 @@ function safelyHideElement(el) {
   el.setAttribute('aria-hidden', 'true');
 }
 
+function decodeHTMLEntities(html) {
+  const txt = document.createElement('textarea');
+  txt.innerHTML = html;
+  return txt.value;
+}
+
+function htmlToPlainTextWithLineBreaks(text) {
+  let result = text.replace(/<br\s*\/?>/gi, '\n');
+  result = result.replace(/<\/(p|div|ul|ol|li|table|tr|h[1-6])>/gi, '\n');
+  result = result.replace(/<[^>]+>/g, '');
+  return result;
+}
+
+
+
 function preprocessBody(htmlContent) {
   let decoded = decodeHTMLEntities(htmlContent);
   decoded = decoded.replace(/\u00A0/g, ' ');
