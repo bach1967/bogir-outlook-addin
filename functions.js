@@ -2,7 +2,29 @@ Office.onReady(() => {
   checkAssignmentStatus();
 });
 
+function safelyHideElement(el) {
+  if (!el) return;
 
+  // Fokus entfernen, wenn ein Kind fokussiert ist
+  if (el.contains(document.activeElement)) {
+    document.activeElement.blur();
+  }
+
+  // Jetzt ist es sicher, aria-hidden zu setzen
+  el.setAttribute('aria-hidden', 'true');
+}
+
+function preprocessBody(htmlContent) {
+  let decoded = decodeHTMLEntities(htmlContent);
+  decoded = decoded.replace(/\u00A0/g, ' ');
+  let plain = htmlToPlainTextWithLineBreaks(decoded);
+  if (plain.length > 4900) {
+    plain = plain.substring(0, 4900);
+  }
+  console.log('processed length:', plain.length);
+  console.log('processed content:', JSON.stringify(plain));
+  return plain;
+}
 
 function formatDateTimeForMySQL(date) {
   const d = new Date(date);
@@ -24,6 +46,8 @@ async function checkAssignmentStatus() {
       from_address: item.from.emailAddress,
       to_address: item.to.length > 0 ? item.to[0].emailAddress : ''
     };
+
+console.log('payload=',payload);
 
     const response = await fetch('https://bogir.hu/V2/api/emails/emails_assignment_check.php', {
       method: 'POST',
@@ -50,7 +74,11 @@ async function checkAssignmentStatus() {
     }
   } catch (err) {
     console.error('checkAssignmentStatus error:', err.name, err.message);
-    document.getElementById('status').innerText = `Hiba a betöltés során: ${err.message}`;
+    const statusDiv = document.getElementById('status');
+    statusDiv.innerText = `Hiba a betöltés során: ${err.message}`;
+  
+    const statusWrapper = document.getElementById('statusWrapper');
+    safelyHideElement(statusWrapper); // Jetzt barrierefrei ausblenden
   }
 }
 
