@@ -77,10 +77,10 @@ console.log('payload=',payload);
     const data = await response.json();
     const statusDiv = document.getElementById('status');
     const btn = document.querySelector('button');
-    if (data.status === 'assigned') {
-      statusDiv.innerText = `Hozzárendelve: ${data.felelos}`;
+    if (data.status.status === 'assigned') {
+      statusDiv.innerText = `Hozzárendelve: ${data.status.felelos}`;
       btn.disabled = true;
-    } else if (data.status === 'unassigned') {
+    } else if (data.status.status === 'unassigned') {
       statusDiv.innerText = 'Még nincs hozzárendelve.';
       btn.disabled = false;
     } else {
