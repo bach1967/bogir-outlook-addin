@@ -118,6 +118,8 @@ async function assignEmail() {
       assignee: Office.context.mailbox.userProfile.emailAddress
     };
 
+console.log('payload',payload);
+
     const response = await fetch('https://bogir.hu/V2/api/emails/emails_assignment.php', {
       method: 'POST',
       headers: {
@@ -129,10 +131,10 @@ async function assignEmail() {
     if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText}`);
 
     const data = await response.json();
-    if (data.status === 'success') {
-      statusDiv.innerText = `Sikeres hozzárendelés: ${data.felelos}`;
+    if (data.status && data.status.status === 'success') {
+      statusDiv.innerText = `Sikeres hozzárendelés: ${data.status.felelos}`;
     } else {
-      throw new Error(data.message || 'Ismeretlen hiba');
+      throw new Error(data.status?.message || 'Ismeretlen hiba');
     }
   } catch (err) {
     console.error('assignEmail error:', err.name, err.message);
