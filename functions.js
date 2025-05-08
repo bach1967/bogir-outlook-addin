@@ -80,6 +80,21 @@ console.log('payload=',payload);
     if (data.status.status === 'assigned') {
       statusDiv.innerText = `Hozzárendelve: ${data.status.felelos}`;
       btn.disabled = true;
+
+
+        // Kategorie "Zöld kategória" automatisch setzen
+        item.categories.addAsync(
+          ['Zöld kategória'],
+          function(asyncResult) {
+            if (asyncResult.status === Office.AsyncResultStatus.Succeeded) {
+              console.log("Kategorie 'Zöld kategória' wurde gesetzt.");
+            } else {
+              console.error('Fehler beim Setzen der Kategorie:', asyncResult.error);
+            }
+          }
+        );
+
+
     } else if (data.status.status === 'unassigned') {
       statusDiv.innerText = 'Még nincs hozzárendelve.';
       btn.disabled = false;
