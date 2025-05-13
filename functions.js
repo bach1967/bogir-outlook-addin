@@ -1,4 +1,41 @@
+async function ensureMasterCategory() {
+  // 1) Hole dir ein Graph-Access-Token für Outlook:
+  const tokenResponse = await new Promise(resolve =>
+    Office.context.auth.getAccessTokenAsync({ allowSignInPrompt: true }, resolve)
+  );
+  if (tokenResponse.status !== Office.AsyncResultStatus.Succeeded) {
+    throw new Error('Token fehlgeschlagen: ' + tokenResponse.error.message);
+  }
+  const token = tokenResponse.value;
+
+  // 2) Prüfe vorhandene Kategorien
+  let resp = await fetch('https://graph.microsoft.com/v1.0/me/outlook/masterCategories', {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  let { value: cats } = await resp.json();
+  const exists = cats.some(c => c.displayName === 'Hozzárendelve');
+
+  if (!exists) {
+    // 3) Falls nicht vorhanden, erstelle sie mit Grün
+    await fetch('https://graph.microsoft.com/v1.0/me/outlook/masterCategories', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        displayName: 'Hozzárendelve',
+        // Graph-Farben: presetColor enum; Grün ist "preset0" oder "green"
+        color: 'green'
+      })
+    });
+    console.log('Master-Kategorie "Hozzárendelve" angelegt.');
+  }
+}
+
+
 Office.onReady(() => {
+    ensureMasterCategory().catch(console.error);
   checkAssignmentStatus();
 });
 
@@ -82,17 +119,19 @@ console.log('payload=',payload);
       btn.disabled = true;
 
 
-        // Kategorie "Zöld kategória" automatisch setzen
-        item.categories.addAsync(
-          ['Zöld kategória'],
-          function(asyncResult) {
-            if (asyncResult.status === Office.AsyncResultStatus.Succeeded) {
-              console.log("Kategorie 'Zöld kategória' wurde gesetzt.");
-            } else {
-              console.error('Fehler beim Setzen der Kategorie:', asyncResult.error);
-            }
-          }
-        );
+const CATEGORY_NAME = 'Hozzárendelve';
+
+// Beim Zuweisen
+item.categories.addAsync(
+  [CATEGORY_NAME],
+  function(asyncResult) {
+    if (asyncResult.status === Office.AsyncResultStatus.Succeeded) {
+      console.log(`Kategorie '${CATEGORY_NAME}' wurde gesetzt.`);
+    } else {
+      console.error('Fehler beim Setzen der Kategorie:', asyncResult.error);
+    }
+  }
+);
 
 
     } else if (data.status.status === 'unassigned') {
