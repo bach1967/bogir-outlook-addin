@@ -1,41 +1,4 @@
-async function ensureMasterCategory() {
-  // 1) Hole dir ein Graph-Access-Token für Outlook:
-  const tokenResponse = await new Promise(resolve =>
-    Office.context.auth.getAccessTokenAsync({ allowSignInPrompt: true }, resolve)
-  );
-  if (tokenResponse.status !== Office.AsyncResultStatus.Succeeded) {
-    throw new Error('Token fehlgeschlagen: ' + tokenResponse.error.message);
-  }
-  const token = tokenResponse.value;
-
-  // 2) Prüfe vorhandene Kategorien
-  let resp = await fetch('https://graph.microsoft.com/v1.0/me/outlook/masterCategories', {
-    headers: { 'Authorization': `Bearer ${token}` }
-  });
-  let { value: cats } = await resp.json();
-  const exists = cats.some(c => c.displayName === 'Hozzárendelve');
-
-  if (!exists) {
-    // 3) Falls nicht vorhanden, erstelle sie mit Grün
-    await fetch('https://graph.microsoft.com/v1.0/me/outlook/masterCategories', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        displayName: 'Hozzárendelve',
-        // Graph-Farben: presetColor enum; Grün ist "preset0" oder "green"
-        color: 'green'
-      })
-    });
-    console.log('Master-Kategorie "Hozzárendelve" angelegt.');
-  }
-}
-
-
 Office.onReady(() => {
-    ensureMasterCategory().catch(console.error);
   checkAssignmentStatus();
 });
 
